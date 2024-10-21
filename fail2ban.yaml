@@ -1,66 +1,41 @@
----
 - name: Setup Intrusion Prevention System with Fail2ban and ModSecurity
   hosts: all
   become: yes
 
   tasks:
-    - name: Install Fail2ban
+    - name: Install required packages
       apt:
-        name: fail2ban
+        name:
+          - fail2ban
+          - libapache2-mod-security2
         state: present
         update_cache: yes
 
-    - name: Install ModSecurity
-      apt:
-        name: libapache2-mod-security2
-        state: present
-        update_cache: yes
+    - name: Configure ModSecurity
+      template:
+        src: templates/modsecurity.conf.j2
+        dest: "/etc/modsecurity/modsecurity.conf"
+      notify: Restart Apache
 
-    - name: Enable ModSecurity in blocking mode
-      lineinfile:
-        path: /etc/modsecurity/modsecurity.conf
-        regexp: "^SecRuleEngine"
-        line: "SecRuleEngine On"
-
-    - name: Restart Apache to apply ModSecurity changes
-      service:
-        name: apache2
-        state: restarted
-
-    - name: Configure Fail2ban SSH jail
-      blockinfile:
-        path: /etc/fail2ban/jail.local
-        block: |
-          [sshd]
-          port = ssh
-          enabled = true
-          filter = sshd
-          findtime = 1h
-          bantime = 15s
-          maxretry = 3
-
-    - name: Configure Fail2ban for ModSecurity
-      blockinfile:
-        path: /etc/fail2ban/jail.local
-        block: |
-          [modsec]
-          enabled = true
-          port = http,https,3000
-          filter = modsec
-          action = iptables-multiport[name=ModSec, port="http,https,3000"]
-          logpath = /var/log/apache2/modsec_audit.log
-          bantime = 15s
-          maxretry = 3
+    - name: Configure Fail2ban jails
+      template:
+        src: templates/jail.local.j2
+        dest: "/etc/fail2ban/jail.local"
+      notify: Restart Fail2ban
 
     - name: Create Fail2ban filter for ModSecurity
-      copy:
-        dest: /etc/fail2ban/filter.d/modsec.conf
-        content: |
-          [Definition]
-          failregex = .*? \[client <HOST>\] ModSecurity: Access denied with code 403\s
-          ignoreregex =
+      template:
+        src: templates/modsec.conf.j2
+        dest: "/etc/fail2ban/filter.d/modsec.conf"
+      notify: Restart Fail2ban
 
-    - name: Restart Fail2ban to apply configuration
+  handlers:
+    - name: Restart Apache
+      service:
+        name: "apache2"
+        state: restarted
+
+    - name: Restart Fail2ban
       service:
         name: fail2ban
         state: restarted

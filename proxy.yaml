@@ -4,81 +4,85 @@
   become: yes
   vars:
     domain_name: juice.ozeliurs.com
-    listen_port: 443 # Adjust if needed
+    listen_port: 443
+    easy_rsa_dir: /etc/easy-rsa
+    apache_ssl_dir: /etc/apache2/ssl
 
   tasks:
     - name: Install required packages
       apt:
-        name:
-          - apache2
-          - easy-rsa
+        name: [apache2, easy-rsa]
         state: present
         update_cache: yes
 
-    - name: Create authority directory
-      command: make-cadir /etc/easy-rsa
-      args:
-        creates: /etc/easy-rsa
+    - name: Set up Easy-RSA and generate certificates
+      block:
+        - name: Create authority directory
+          command: make-cadir {{ easy_rsa_dir }}
+          args:
+            creates: "{{ easy_rsa_dir }}"
 
-    - name: Initialize PKI
-      command: ./easyrsa init-pki
-      args:
-        chdir: /etc/easy-rsa
-        creates: /etc/easy-rsa/pki
+        - name: Initialize PKI
+          command: ./easyrsa init-pki
+          args:
+            chdir: "{{ easy_rsa_dir }}"
+            creates: "{{ easy_rsa_dir }}/pki"
 
-    - name: Generate CA certificate and key
-      command: ./easyrsa build-ca nopass
-      args:
-        chdir: /etc/easy-rsa
-        creates: /etc/easy-rsa/pki/ca.crt
+        - name: Generate CA certificate and key
+          command: ./easyrsa build-ca nopass
+          args:
+            chdir: "{{ easy_rsa_dir }}"
+            creates: "{{ easy_rsa_dir }}/pki/ca.crt"
 
-    - name: Generate server certificate request
-      command: ./easyrsa gen-req {{ domain_name }} nopass
-      args:
-        chdir: /etc/easy-rsa
-        creates: /etc/easy-rsa/pki/reqs/{{ domain_name }}.req
+        - name: Generate server certificate request
+          command: ./easyrsa gen-req {{ domain_name }} nopass
+          args:
+            chdir: "{{ easy_rsa_dir }}"
+            creates: "{{ easy_rsa_dir }}/pki/reqs/{{ domain_name }}.req"
 
-    - name: Sign server certificate
-      command: ./easyrsa sign-req server {{ domain_name }}
-      args:
-        chdir: /etc/easy-rsa
-        creates: /etc/easy-rsa/pki/issued/{{ domain_name }}.crt
+        - name: Sign server certificate
+          command: ./easyrsa sign-req server {{ domain_name }}
+          args:
+            chdir: "{{ easy_rsa_dir }}"
+            creates: "{{ easy_rsa_dir }}/pki/issued/{{ domain_name }}.crt"
 
-    - name: Ensure Apache SSL directory exists
-      file:
-        path: /etc/apache2/ssl
-        state: directory
+    - name: Configure Apache SSL
+      block:
+        - name: Ensure Apache SSL directory exists
+          file:
+            path: "{{ apache_ssl_dir }}"
+            state: directory
 
-    - name: Copy SSL certificates to Apache directory
-      copy:
-        src: "/etc/easy-rsa/pki/{{ item.src }}"
-        dest: "/etc/apache2/ssl/{{ item.dest }}"
-        remote_src: yes
-      loop:
-        - { src: "issued/{{ domain_name }}.crt", dest: "{{ domain_name }}.crt" }
-        - {
-            src: "private/{{ domain_name }}.key",
-            dest: "{{ domain_name }}.key",
-          }
+        - name: Copy SSL certificates to Apache directory
+          copy:
+            src: "{{ easy_rsa_dir }}/pki/{{ item.src }}"
+            dest: "{{ apache_ssl_dir }}/{{ item.dest }}"
+            remote_src: yes
+          loop:
+            - {
+                src: "issued/{{ domain_name }}.crt",
+                dest: "{{ domain_name }}.crt",
+              }
+            - {
+                src: "private/{{ domain_name }}.key",
+                dest: "{{ domain_name }}.key",
+              }
 
-    - name: Enable Apache modules
-      apache2_module:
-        name: "{{ item }}"
-        state: present
-      loop:
-        - ssl
-        - proxy
-        - proxy_http
+        - name: Enable Apache modules
+          apache2_module:
+            name: "{{ item }}"
+            state: present
+          loop: [ssl, proxy, proxy_http]
 
-    - name: Create virtual host file
-      template:
-        src: templates/vhost.conf.j2
-        dest: "/etc/apache2/sites-available/{{ domain_name }}.conf"
-      notify: Restart Apache
+        - name: Create virtual host file
+          template:
+            src: templates/vhost.conf.j2
+            dest: "/etc/apache2/sites-available/{{ domain_name }}.conf"
+          notify: Restart Apache
 
-    - name: Enable virtual host
-      command: "a2ensite {{ domain_name }}"
-      notify: Restart Apache
+        - name: Enable virtual host
+          command: "a2ensite {{ domain_name }}"
+          notify: Restart Apache
 
   handlers:
     - name: Restart Apache

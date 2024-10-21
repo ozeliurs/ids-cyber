@@ -3,31 +3,37 @@
   hosts: all
   become: yes
 
+  vars:
+    modsecurity_conf_path: /etc/modsecurity/modsecurity.conf
+
   tasks:
-    - name: Install libapache2-mod-security2
-      apt:
-        name: libapache2-mod-security2
-        state: present
-        update_cache: yes
+    - name: Install and enable ModSecurity
+      block:
+        - name: Install libapache2-mod-security2
+          apt:
+            name: libapache2-mod-security2
+            state: present
+            update_cache: yes
 
-    - name: Ensure ModSecurity is enabled
-      apache2_module:
-        name: security2
-        state: present
+        - name: Ensure ModSecurity is enabled
+          apache2_module:
+            name: security2
+            state: present
       notify: Restart Apache
 
-    - name: Copy ModSecurity configuration file
-      copy:
-        src: /etc/modsecurity/modsecurity.conf-recommended
-        dest: /etc/modsecurity/modsecurity.conf
-        remote_src: yes
-      notify: Restart Apache
+    - name: Configure ModSecurity
+      block:
+        - name: Copy ModSecurity configuration file
+          copy:
+            src: "{{ modsecurity_conf_path }}-recommended"
+            dest: "{{ modsecurity_conf_path }}"
+            remote_src: yes
 
-    - name: Enable SecAuditEngine
-      lineinfile:
-        path: /etc/modsecurity/modsecurity.conf
-        regexp: "^SecAuditEngine"
-        line: "SecAuditEngine On"
+        - name: Enable SecAuditEngine
+          lineinfile:
+            path: "{{ modsecurity_conf_path }}"
+            regexp: "^SecAuditEngine"
+            line: "SecAuditEngine On"
       notify: Restart Apache
 
   handlers:

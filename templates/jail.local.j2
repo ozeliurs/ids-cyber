@@ -1,0 +1,16 @@
+[sshd]
+port = ssh
+enabled = true
+filter = sshd
+findtime = 1h
+bantime = 15s
+maxretry = 3
+
+[modsec]
+enabled = true
+port = http,https,3000
+filter = modsec
+action = iptables-multiport[name=ModSec, port="http,https,3000"]
+logpath = {{ apache_modsec_log }}
+bantime = 15s
+maxretry = 3

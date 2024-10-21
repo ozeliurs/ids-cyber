@@ -20,7 +20,7 @@
 
     - name: Create Snort systemd service file
       template:
-        src: alert-snort.service.j2
+        src: templates/alert-snort.service.j2
         dest: /etc/systemd/system/alert-snort.service
       vars:
         net_iface: "{{ default_interface.stdout }}"
