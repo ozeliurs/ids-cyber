@@ -1,0 +1,18 @@
+<VirtualHost *:{{ listen_port }}>
+    SSLEngine on
+    SSLCertificateFile /etc/apache2/ssl/{{ domain_name }}.crt
+    SSLCertificateKeyFile /etc/apache2/ssl/{{ domain_name }}.key
+
+    <Location />
+        ProxyPass http://127.0.0.1:3000/
+        ProxyPassReverse http://127.0.0.1:3000/
+    </Location>
+
+    <Location /premium>
+        ProxyPass http://127.0.0.1:10000/
+        ProxyPassReverse http://127.0.0.1:10000/
+    </Location>
+
+    ErrorLog /var/log/apache2/error.{{ domain_name }}.log
+    CustomLog /var/log/apache2/access.{{ domain_name }}.log combined
+</VirtualHost>

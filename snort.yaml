@@ -1,0 +1,36 @@
+---
+- name: Setup Snort IDS
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install Snort
+      apt:
+        name: snort
+        state: present
+
+    - name: Configure Snort rules for SSH detection
+      lineinfile:
+        path: "/etc/snort/rules/local.rules"
+        line: 'alert tcp any any -> any 22 (msg: "SSH Connection Attempt"; sid:10000001; rev:1;)'
+
+    - name: Get default interface name
+      shell: ip route | grep default | awk '{print $5}' | head -n1
+      register: default_interface
+      changed_when: false
+
+    - name: Create Snort systemd service file
+      template:
+        src: alert-snort.service.j2
+        dest: /etc/systemd/system/alert-snort.service
+      vars:
+        net_iface: "{{ default_interface.stdout }}"
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start Snort service
+      systemd:
+        name: alert-snort
+        state: started
+        enabled: yes

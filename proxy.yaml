@@ -1,0 +1,87 @@
+---
+- name: Configure Apache2 with SSL and Proxy
+  hosts: all
+  become: yes
+  vars:
+    domain_name: juice.ozeliurs.com
+    listen_port: 443 # Adjust if needed
+
+  tasks:
+    - name: Install required packages
+      apt:
+        name:
+          - apache2
+          - easy-rsa
+        state: present
+        update_cache: yes
+
+    - name: Create authority directory
+      command: make-cadir /etc/easy-rsa
+      args:
+        creates: /etc/easy-rsa
+
+    - name: Initialize PKI
+      command: ./easyrsa init-pki
+      args:
+        chdir: /etc/easy-rsa
+        creates: /etc/easy-rsa/pki
+
+    - name: Generate CA certificate and key
+      command: ./easyrsa build-ca nopass
+      args:
+        chdir: /etc/easy-rsa
+        creates: /etc/easy-rsa/pki/ca.crt
+
+    - name: Generate server certificate request
+      command: ./easyrsa gen-req {{ domain_name }} nopass
+      args:
+        chdir: /etc/easy-rsa
+        creates: /etc/easy-rsa/pki/reqs/{{ domain_name }}.req
+
+    - name: Sign server certificate
+      command: ./easyrsa sign-req server {{ domain_name }}
+      args:
+        chdir: /etc/easy-rsa
+        creates: /etc/easy-rsa/pki/issued/{{ domain_name }}.crt
+
+    - name: Ensure Apache SSL directory exists
+      file:
+        path: /etc/apache2/ssl
+        state: directory
+
+    - name: Copy SSL certificates to Apache directory
+      copy:
+        src: "/etc/easy-rsa/pki/{{ item.src }}"
+        dest: "/etc/apache2/ssl/{{ item.dest }}"
+        remote_src: yes
+      loop:
+        - { src: "issued/{{ domain_name }}.crt", dest: "{{ domain_name }}.crt" }
+        - {
+            src: "private/{{ domain_name }}.key",
+            dest: "{{ domain_name }}.key",
+          }
+
+    - name: Enable Apache modules
+      apache2_module:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - ssl
+        - proxy
+        - proxy_http
+
+    - name: Create virtual host file
+      template:
+        src: templates/vhost.conf.j2
+        dest: "/etc/apache2/sites-available/{{ domain_name }}.conf"
+      notify: Restart Apache
+
+    - name: Enable virtual host
+      command: "a2ensite {{ domain_name }}"
+      notify: Restart Apache
+
+  handlers:
+    - name: Restart Apache
+      systemd:
+        name: apache2
+        state: restarted

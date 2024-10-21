@@ -1,0 +1,110 @@
+---
+- name: Configure iptables rules
+  hosts: all
+  become: yes
+  tasks:
+    - name: Set default policy for CHAINE to DROP
+      iptables:
+        chain: CHAINE
+        policy: DROP
+
+    - name: Allow outbound DNS
+      iptables:
+        chain: OUTPUT
+        table: filter
+        protocol: udp
+        destination_port: 53
+        jump: ACCEPT
+
+    - name: Allow inbound DNS
+      iptables:
+        chain: INPUT
+        table: filter
+        protocol: udp
+        source_port: 53
+        jump: ACCEPT
+
+    - name: Allow outbound ICMP
+      iptables:
+        chain: OUTPUT
+        table: filter
+        protocol: icmp
+        jump: ACCEPT
+
+    - name: Allow inbound ICMP
+      iptables:
+        chain: INPUT
+        table: filter
+        protocol: icmp
+        jump: ACCEPT
+
+    - name: Allow outbound DHCP
+      iptables:
+        chain: OUTPUT
+        table: filter
+        protocol: udp
+        destination_port: 67:68
+        jump: ACCEPT
+
+    - name: Allow inbound DHCP
+      iptables:
+        chain: INPUT
+        table: filter
+        protocol: udp
+        destination_port: 67:68
+        source_port: 67:68
+        jump: ACCEPT
+
+    - name: Allow loopback input
+      iptables:
+        chain: INPUT
+        table: filter
+        in_interface: lo
+        jump: ACCEPT
+
+    - name: Allow loopback output
+      iptables:
+        chain: OUTPUT
+        table: filter
+        out_interface: lo
+        jump: ACCEPT
+
+    - name: Allow inbound SSH from specific IP
+      iptables:
+        chain: INPUT
+        table: filter
+        protocol: tcp
+        source: 192.168.27.65
+        destination_port: 22
+        jump: ACCEPT
+
+    - name: Allow outbound SSH for established connections
+      iptables:
+        chain: OUTPUT
+        table: filter
+        protocol: tcp
+        source_port: 22
+        ctstate: ESTABLISHED,RELATED
+        jump: ACCEPT
+
+    - name: Allow outbound HTTP
+      iptables:
+        chain: OUTPUT
+        table: filter
+        protocol: tcp
+        destination_port: 80
+        jump: ACCEPT
+
+    - name: Allow inbound HTTP for established connections
+      iptables:
+        chain: INPUT
+        table: filter
+        protocol: tcp
+        source_port: 80
+        ctstate: ESTABLISHED,RELATED
+        jump: ACCEPT
+
+    - name: Save iptables rules
+      shell: iptables-save > /etc/iptables/rules.v4
+      args:
+        creates: /etc/iptables/rules.v4

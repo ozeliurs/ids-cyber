@@ -1,0 +1,12 @@
+[Unit]
+Description=Snort IDS Service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/snort -A fast -q -u snort -g snort -c /etc/snort/snort.conf --pid-path /run/snort/ -i {{ net_iface }}
+ExecStop=/usr/bin/pkill -INT -F /run/snort/snort_{{ net_iface }}.pid
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,37 @@
+---
+- name: Install and Configure ModSecurity for Apache2
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Install libapache2-mod-security2
+      apt:
+        name: libapache2-mod-security2
+        state: present
+        update_cache: yes
+
+    - name: Ensure ModSecurity is enabled
+      apache2_module:
+        name: security2
+        state: present
+      notify: Restart Apache
+
+    - name: Copy ModSecurity configuration file
+      copy:
+        src: /etc/modsecurity/modsecurity.conf-recommended
+        dest: /etc/modsecurity/modsecurity.conf
+        remote_src: yes
+      notify: Restart Apache
+
+    - name: Enable SecAuditEngine
+      lineinfile:
+        path: /etc/modsecurity/modsecurity.conf
+        regexp: "^SecAuditEngine"
+        line: "SecAuditEngine On"
+      notify: Restart Apache
+
+  handlers:
+    - name: Restart Apache
+      systemd:
+        name: apache2
+        state: restarted
