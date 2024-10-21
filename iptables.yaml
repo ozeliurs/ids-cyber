@@ -41,6 +41,14 @@
           ctstate: ESTABLISHED,
           RELATED,
         }
+      - {
+          chain: INPUT,
+          table: filter,
+          jump: LOG,
+          ctstate: NEW,
+          log_prefix: "[IPTABLES]: ",
+          log_ip_options: true,
+        }
 
   tasks:
     - name: Apply iptables rules
@@ -56,6 +64,8 @@
         source: "{{ item.source | default(omit) }}"
         ctstate: "{{ item.ctstate | default(omit) }}"
         jump: "{{ item.jump | default(default_jump) }}"
+        log_prefix: "{{ item.log_prefix | default(omit) }}"
+        log_ip_options: "{{ item.log_ip_options | default(omit) }}"
       loop: "{{ iptables_rules }}"
 
     - name: Save iptables rules
