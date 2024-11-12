@@ -4,7 +4,6 @@
   become: yes
   vars:
     domain_name: juice.ozeliurs.com
-    listen_port: 443
     easy_rsa_dir: /etc/easy-rsa
     apache_ssl_dir: /etc/apache2/ssl
 
@@ -33,15 +32,17 @@
           args:
             chdir: "{{ easy_rsa_dir }}"
             creates: "{{ easy_rsa_dir }}/pki/ca.crt"
+            stdin: |
+              {{ domain_name }}
 
         - name: Generate server certificate request
-          command: ./easyrsa gen-req {{ domain_name }} nopass
+          command: ./easyrsa --batch gen-req {{ domain_name }} nopass
           args:
             chdir: "{{ easy_rsa_dir }}"
             creates: "{{ easy_rsa_dir }}/pki/reqs/{{ domain_name }}.req"
 
         - name: Sign server certificate
-          command: ./easyrsa sign-req server {{ domain_name }}
+          command: ./easyrsa --batch sign-req server {{ domain_name }}
           args:
             chdir: "{{ easy_rsa_dir }}"
             creates: "{{ easy_rsa_dir }}/pki/issued/{{ domain_name }}.crt"
@@ -83,6 +84,43 @@
         - name: Enable virtual host
           command: "a2ensite {{ domain_name }}"
           notify: Restart Apache
+
+        - name: Disable default site
+          command: "a2dissite 000-default"
+          notify: Restart Apache
+
+        - name: Allow HTTP IN
+          iptables:
+            chain: INPUT
+            protocol: tcp
+            destination_port: 80
+            ctstate: NEW,ESTABLISHED
+            jump: ACCEPT
+
+        - name: Allow HTTPS IN
+          iptables:
+            chain: INPUT
+            protocol: tcp
+            destination_port: 443
+            ctstate: NEW,ESTABLISHED
+            jump: ACCEPT
+
+        - name: Allow HTTP OUT
+          iptables:
+            chain: OUTPUT
+            protocol: tcp
+            source_port: 80
+            jump: ACCEPT
+
+        - name: Allow HTTPS OUT
+          iptables:
+            chain: OUTPUT
+            protocol: tcp
+            source_port: 443
+            jump: ACCEPT
+
+        - name: Save iptables rules
+          shell: iptables-save > /etc/iptables/rules.v4
 
   handlers:
     - name: Restart Apache

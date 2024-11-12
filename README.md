@@ -2,6 +2,8 @@
 
 This repository contains Ansible playbooks for setting up an Intrusion Detection System (IDS) and other cybersecurity measures.
 
+# [⚠️ READ THE FULL REPORT ⚠️](FULL_REPORT.md)
+
 ## Prerequisites
 
 - Ansible installed on your control machine
@@ -12,7 +14,7 @@ This repository contains Ansible playbooks for setting up an Intrusion Detection
 
 1. Clone this repository:
    ```
-   git clone https://github.com/your-username/ids-cyber.git
+   git clone https://github.com/ozeliurs/ids-cyber.git
    cd ids-cyber
    ```
 

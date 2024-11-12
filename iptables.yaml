@@ -6,7 +6,6 @@
     default_table: filter
     default_jump: ACCEPT
     iptables_rules:
-      - { chain: CHAINE, policy: DROP }
       - { chain: OUTPUT, protocol: udp, destination_port: 53 }
       - { chain: INPUT, protocol: udp, source_port: 53 }
       - { chain: OUTPUT, protocol: icmp }
@@ -41,14 +40,10 @@
           ctstate: ESTABLISHED,
           RELATED,
         }
-      - {
-          chain: INPUT,
-          table: filter,
-          jump: LOG,
-          ctstate: NEW,
-          log_prefix: "[IPTABLES]: ",
-          log_ip_options: true,
-        }
+      - { chain: INPUT, source: 172.17.0.0/12, jump: ACCEPT }
+      - { chain: OUTPUT, destination: 172.17.0.0/12, jump: ACCEPT }
+      - { chain: INPUT, policy: DROP }
+      - { chain: OUTPUT, policy: DROP }
 
   tasks:
     - name: Apply iptables rules
@@ -62,11 +57,22 @@
         in_interface: "{{ item.in_interface | default(omit) }}"
         out_interface: "{{ item.out_interface | default(omit) }}"
         source: "{{ item.source | default(omit) }}"
+        destination: "{{ item.destination | default(omit) }}"
         ctstate: "{{ item.ctstate | default(omit) }}"
         jump: "{{ item.jump | default(default_jump) }}"
-        log_prefix: "{{ item.log_prefix | default(omit) }}"
-        log_ip_options: "{{ item.log_ip_options | default(omit) }}"
       loop: "{{ iptables_rules }}"
+
+    - name: Check if iptables logging rule exists
+      shell: 'iptables -t filter -C INPUT -m state --state NEW -j LOG --log-prefix "[IPTABLES]: " --log-ip-options'
+      register: check_rule
+      ignore_errors: yes
+
+    - name: Add iptables logging
+      command: 'iptables -t filter -I INPUT 1 -m state --state NEW -j LOG --log-prefix "[IPTABLES]: " --log-ip-options'
+      when: check_rule.rc != 0
+
+    - name: Create iptables folder
+      shell: mkdir -p /etc/iptables
 
     - name: Save iptables rules
       shell: iptables-save > /etc/iptables/rules.v4
